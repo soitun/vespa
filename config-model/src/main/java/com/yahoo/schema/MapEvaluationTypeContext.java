@@ -168,8 +168,9 @@ public class MapEvaluationTypeContext extends FunctionReferenceContext implement
 
             // A reference to an attribute, query or constant feature?
             if (FeatureNames.isSimpleFeature(reference)) {
+                String argument = reference.simpleArgument()
+                        .orElse(reference.arguments().expressions().get(0).toString());
                 // The argument may be a local identifier bound to the actual value
-                String argument = reference.simpleArgument().get();
                 String argumentBinding = resolveBinding(argument);
                 reference = Reference.simple(reference.name(), argumentBinding);
                 return featureTypes.get(reference);
@@ -296,9 +297,10 @@ public class MapEvaluationTypeContext extends FunctionReferenceContext implement
     }
 
     /**
-     * There are three features which may return some (non-empty) tensor type:
+     * There are some features which may return some (non-empty) tensor type:
      * - tensorFromLabels
      * - tensorFromWeightedSet
+     * - tensorFromStructs
      * - closest
      * - elementwise
      * This returns the type of those features if this is a reference to either of them, or empty otherwise.
@@ -306,6 +308,7 @@ public class MapEvaluationTypeContext extends FunctionReferenceContext implement
     private Optional<TensorType> tensorFeatureType(Reference reference) {
         if ( ! reference.name().equals("tensorFromLabels") &&
              ! reference.name().equals("tensorFromWeightedSet") &&
+             ! reference.name().equals("tensorFromStructs") &&
              ! reference.name().equals("elementwise") &&
              ! reference.name().equals("closest"))
         {
@@ -348,6 +351,21 @@ public class MapEvaluationTypeContext extends FunctionReferenceContext implement
                 throw new IllegalArgumentException(reference + " must have two or three arguments");
             if (arg2 != null) {
                 cellType = TensorType.Value.fromId(arg2.toString());
+            }
+        }
+        if (reference.name().equals("tensorFromStructs")) {
+            if (reference.arguments().size() < 3 || reference.arguments().size() > 4) {
+                throw new IllegalArgumentException(reference + " should have 3 or 4 arguments");
+            }
+            if (arg0 instanceof ReferenceNode arg0ref && FeatureNames.isAttributeFeature(arg0ref.reference())) {
+                dimension = String.valueOf(arg1);
+                if (reference.arguments().size() > 3) {
+                    ExpressionNode arg3 = getArgExp(reference, 3);
+                    cellType = TensorType.Value.fromId(String.valueOf(arg3));
+                }
+            } else {
+                throw new IllegalArgumentException("Bad first argument of " + reference.name() +
+                                                   " must be an attribute feature, not " + arg0);
             }
         }
         if (reference.name().equals("tensorFromLabels") ||

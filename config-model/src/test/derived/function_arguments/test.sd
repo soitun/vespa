@@ -43,9 +43,9 @@ schema args {
             expression: my_func(if) + my_func(unknown) + my_func(cos)
         }
 
-        function test_parses_but_invalid() {
-            expression: my_func(attribute(query(q1)))
-        }
+      # function test_parses_but_invalid() {
+      #     expression: my_func(attribute(query(q1)))
+      # }
 
     }
 

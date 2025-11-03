@@ -26,10 +26,13 @@ public class FeatureNames {
 
     /** Returns true if the given reference is an attribute, constant or query feature */
     public static boolean isSimpleFeature(Reference reference) {
-        if ( ! reference.isSimple()) return false;
         if (reference.output() != null) return false;
         String name = reference.name();
-        return name.equals("attribute") || name.equals("constant") || name.equals("query");
+        if (name.equals("attribute")) {
+            return reference.arguments().size() == 1;
+        }
+        if ( ! reference.isSimple()) return false;
+        return name.equals("constant") || name.equals("query");
     }
 
     /** Returns true if this is a constant */
@@ -46,8 +49,7 @@ public class FeatureNames {
 
     /** Returns true if this is an attribute feature */
     public static boolean isAttributeFeature(Reference reference) {
-        if ( ! isSimpleFeature(reference)) return false;
-        return reference.name().equals("attribute");
+        return reference.name().equals("attribute") && (reference.output() == null);
     }
 
     /**
