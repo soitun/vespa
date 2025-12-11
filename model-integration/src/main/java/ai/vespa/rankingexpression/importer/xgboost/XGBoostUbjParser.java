@@ -35,47 +35,19 @@ class XGBoostUbjParser extends AbstractXGBoostParser {
              UBReader reader = new UBReader(fileStream)) {
             UBValue root = reader.read();
 
-            // Navigate to the trees array in the nested structure
             UBArray forestArray;
             if (root.isArray()) {
                 // Simple array format (like JSON export)
                 forestArray = root.asArray();
             } else if (root.isObject()) {
-                // Nested object format: root.learner.gradient_booster.model.trees
                 UBObject rootObj = root.asObject();
-                UBValue learnerValue = rootObj.get("learner");
-                if (learnerValue == null || !learnerValue.isObject()) {
-                    throw new IOException("Expected 'learner' object in UBJ root");
-                }
-                UBObject learner = learnerValue.asObject();
+                UBObject learner = getRequiredObject(rootObj, "learner", "UBJ root");
 
-                // Extract base_score from learner_model_param
-                UBValue learnerModelParamValue = learner.get("learner_model_param");
-                if (learnerModelParamValue != null && learnerModelParamValue.isObject()) {
-                    UBObject learnerModelParam = learnerModelParamValue.asObject();
-                    UBValue baseScoreValue = learnerModelParam.get("base_score");
-                    if (baseScoreValue != null && baseScoreValue.isString()) {
-                        String baseScoreStr = baseScoreValue.asString();
-                        // Parse string like "[6.274165E-1]" - remove brackets and parse
-                        baseScoreStr = baseScoreStr.replace("[", "").replace("]", "");
-                        tmpBaseScore = Double.parseDouble(baseScoreStr);
-                    }
-                }
-                UBValue gbValue = learner.get("gradient_booster");
-                if (gbValue == null || !gbValue.isObject()) {
-                    throw new IOException("Expected 'gradient_booster' object in learner");
-                }
-                UBObject gradientBooster = gbValue.asObject();
-                UBValue modelValue = gradientBooster.get("model");
-                if (modelValue == null || !modelValue.isObject()) {
-                    throw new IOException("Expected 'model' object in gradient_booster");
-                }
-                UBObject model = modelValue.asObject();
-                UBValue treesValue = model.get("trees");
-                if (treesValue == null || !treesValue.isArray()) {
-                    throw new IOException("Expected 'trees' array in model");
-                }
-                forestArray = treesValue.asArray();
+                // Extract base_score if available
+                tmpBaseScore = extractBaseScore(learner);
+
+                // Navigate to trees array
+                forestArray = navigateToTreesArray(learner);
             } else {
                 throw new IOException("Expected UBJ array or object at root, got: " + root.getClass().getSimpleName());
             }
@@ -109,6 +81,61 @@ class XGBoostUbjParser extends AbstractXGBoostParser {
         ret.append(" + \n");
         ret.append("log(" + baseScore + ") - log(" + (1.0 - baseScore) + ")");
         return ret.toString();
+    }
+
+    /**
+     * Extracts a required UBObject from a parent object.
+     *
+     * @param parent Parent UBObject to extract from.
+     * @param key Key name to extract.
+     * @param parentDescription Description of parent for error messages.
+     * @return The extracted UBObject.
+     * @throws IOException If the key is missing or not an object.
+     */
+    private static UBObject getRequiredObject(UBObject parent, String key, String parentDescription) throws IOException {
+        UBValue value = parent.get(key);
+        if (value == null || !value.isObject()) {
+            throw new IOException("Expected '" + key + "' object in " + parentDescription);
+        }
+        return value.asObject();
+    }
+
+    /**
+     * Extracts the base_score from learner_model_param if available.
+     *
+     * @param learner The learner UBObject.
+     * @return The extracted base_score, or 0.5 if not found.
+     */
+    private static double extractBaseScore(UBObject learner) {
+        UBValue learnerModelParamValue = learner.get("learner_model_param");
+        if (learnerModelParamValue != null && learnerModelParamValue.isObject()) {
+            UBObject learnerModelParam = learnerModelParamValue.asObject();
+            UBValue baseScoreValue = learnerModelParam.get("base_score");
+            if (baseScoreValue != null && baseScoreValue.isString()) {
+                String baseScoreStr = baseScoreValue.asString();
+                // Parse string like "[6.274165E-1]" - remove brackets and parse
+                baseScoreStr = baseScoreStr.replace("[", "").replace("]", "");
+                return Double.parseDouble(baseScoreStr);
+            }
+        }
+        return 0.5; // default value
+    }
+
+    /**
+     * Navigates from learner object to the trees array.
+     *
+     * @param learner The learner UBObject.
+     * @return The trees UBArray.
+     * @throws IOException If navigation fails.
+     */
+    private static UBArray navigateToTreesArray(UBObject learner) throws IOException {
+        UBObject gradientBooster = getRequiredObject(learner, "gradient_booster", "learner");
+        UBObject model = getRequiredObject(gradientBooster, "model", "gradient_booster");
+        UBValue treesValue = model.get("trees");
+        if (treesValue == null || !treesValue.isArray()) {
+            throw new IOException("Expected 'trees' array in model");
+        }
+        return treesValue.asArray();
     }
 
     /**
