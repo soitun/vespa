@@ -26,4 +26,26 @@ public class XGBoostImportTestCase {
         assertEquals(1, model.outputExpressions().size());
     }
 
+    @Test
+    public void testXGBoostUBJ() {
+        // Test that JSON and UBJ formats produce identical ranking expressions
+        XGBoostImporter importer = new XGBoostImporter();
+        ImportedModel jsonModel = importer.importModel("test", "src/test/models/xgboost/binary_breast_cancer.json");
+        ImportedModel ubjModel = importer.importModel("test", "src/test/models/xgboost/binary_breast_cancer.ubj");
+
+        assertNotNull("JSON model should be imported", jsonModel);
+        assertNotNull("UBJ model should be imported", ubjModel);
+
+        RankingExpression jsonExpression = jsonModel.expressions().get("test");
+        RankingExpression ubjExpression = ubjModel.expressions().get("test");
+
+        assertNotNull("JSON expression should exist", jsonExpression);
+        assertNotNull("UBJ expression should exist", ubjExpression);
+
+        // The ranking expressions should be identical
+        assertEquals("JSON and UBJ should produce identical ranking expressions",
+                jsonExpression.getRoot().toString(),
+                ubjExpression.getRoot().toString());
+    }
+
 }
