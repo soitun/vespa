@@ -151,24 +151,32 @@ class XGBoostUbjParser extends AbstractXGBoostParser {
         float[] splitConditions = treeObj.get("split_conditions").asFloat32Array();
         int[] splitIndices = treeObj.get("split_indices").asInt32Array();
         float[] baseWeights = treeObj.get("base_weights").asFloat32Array();
-
-        // default_left is stored as bytes/array, convert to boolean array
-        byte[] defaultLeftBytes;
-        UBValue defaultLeftValue = treeObj.get("default_left");
-        if (defaultLeftValue.isArray()) {
-            // It's a UBArray, iterate and convert
-            UBArray defaultLeftArray = defaultLeftValue.asArray();
-            defaultLeftBytes = new byte[defaultLeftArray.size()];
-            for (int i = 0; i < defaultLeftArray.size(); i++) {
-                defaultLeftBytes[i] = defaultLeftArray.get(i).asByte();
-            }
-        } else {
-            defaultLeftBytes = defaultLeftValue.asByteArray();
-        }
+        byte[] defaultLeftBytes = extractDefaultLeft(treeObj.get("default_left"));
 
         // Convert from flat arrays to hierarchical tree structure, starting at root (node 0, depth 0)
         return buildTreeFromArrays(0, 0, leftChildren, rightChildren, splitConditions,
                 splitIndices, baseWeights, defaultLeftBytes);
+    }
+
+    /**
+     * Extracts the default_left array from UBJ value.
+     * Handles both UBArray and direct byte array formats.
+     *
+     * @param defaultLeftValue The UBValue containing default_left data.
+     * @return Byte array with default_left values.
+     */
+    private static byte[] extractDefaultLeft(UBValue defaultLeftValue) {
+        if (defaultLeftValue.isArray()) {
+            // It's a UBArray, iterate and convert
+            UBArray defaultLeftArray = defaultLeftValue.asArray();
+            byte[] result = new byte[defaultLeftArray.size()];
+            for (int i = 0; i < defaultLeftArray.size(); i++) {
+                result[i] = defaultLeftArray.get(i).asByte();
+            }
+            return result;
+        } else {
+            return defaultLeftValue.asByteArray();
+        }
     }
 
     /**
