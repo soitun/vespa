@@ -156,7 +156,6 @@ class XGBoostUbjParser {
         // Extract flat arrays from UBJ format
         int[] leftChildren = treeObj.get("left_children").asInt32Array();
         int[] rightChildren = treeObj.get("right_children").asInt32Array();
-        int[] parents = treeObj.get("parents").asInt32Array();
         float[] splitConditions = treeObj.get("split_conditions").asFloat32Array();
         int[] splitIndices = treeObj.get("split_indices").asInt32Array();
         float[] baseWeights = treeObj.get("base_weights").asFloat32Array();
@@ -175,8 +174,8 @@ class XGBoostUbjParser {
             defaultLeftBytes = defaultLeftValue.asByteArray();
         }
 
-        // Convert from flat arrays to hierarchical tree structure
-        return buildTreeFromArrays(0, leftChildren, rightChildren, parents, splitConditions,
+        // Convert from flat arrays to hierarchical tree structure, starting at root (node 0, depth 0)
+        return buildTreeFromArrays(0, 0, leftChildren, rightChildren, splitConditions,
                 splitIndices, baseWeights, defaultLeftBytes);
     }
 
@@ -184,34 +183,20 @@ class XGBoostUbjParser {
      * Recursively builds a hierarchical XGBoostTree from flat arrays.
      *
      * @param nodeId Current node index in the arrays.
+     * @param depth Current depth in the tree (0 for root).
      * @param leftChildren Array of left child indices.
      * @param rightChildren Array of right child indices.
-     * @param parents Array of parent indices.
      * @param splitConditions Array of split threshold values.
      * @param splitIndices Array of feature indices to split on.
      * @param baseWeights Array of base weights (leaf values).
      * @param defaultLeft Array indicating if missing values go left.
      * @return XGBoostTree node.
      */
-    private static XGBoostTree buildTreeFromArrays(int nodeId, int[] leftChildren, int[] rightChildren,
-                                                   int[] parents, float[] splitConditions,
-                                                   int[] splitIndices, float[] baseWeights,
-                                                   byte[] defaultLeft) {
+    private static XGBoostTree buildTreeFromArrays(int nodeId, int depth, int[] leftChildren, int[] rightChildren,
+                                                   float[] splitConditions, int[] splitIndices,
+                                                   float[] baseWeights, byte[] defaultLeft) {
         XGBoostTree node = new XGBoostTree();
         setField(node, "nodeid", nodeId);
-
-        // Calculate depth by traversing up to root
-        // Note: root node has parent set to Integer.MAX_VALUE or -1
-        int depth = 0;
-        int currentId = nodeId;
-        while (currentId >= 0 && currentId < parents.length) {
-            int parentId = parents[currentId];
-            if (parentId == -1 || parentId == Integer.MAX_VALUE || parentId >= parents.length) {
-                break;  // Reached root
-            }
-            depth++;
-            currentId = parentId;
-        }
         setField(node, "depth", depth);
 
         // Check if this is a leaf node
@@ -244,9 +229,9 @@ class XGBoostUbjParser {
 
             // Recursively build children
             List<XGBoostTree> children = new ArrayList<>();
-            children.add(buildTreeFromArrays(leftChild, leftChildren, rightChildren, parents,
+            children.add(buildTreeFromArrays(leftChild, depth + 1, leftChildren, rightChildren,
                     splitConditions, splitIndices, baseWeights, defaultLeft));
-            children.add(buildTreeFromArrays(rightChild, leftChildren, rightChildren, parents,
+            children.add(buildTreeFromArrays(rightChild, depth + 1, leftChildren, rightChildren,
                     splitConditions, splitIndices, baseWeights, defaultLeft));
             setField(node, "children", children);
         }
