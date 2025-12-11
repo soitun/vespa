@@ -20,6 +20,7 @@ import java.util.List;
 class XGBoostUbjParser {
 
     private final List<XGBoostTree> xgboostTrees;
+    private final double baseScore;
 
     /**
      * Constructor stores parsed UBJ trees.
@@ -29,6 +30,7 @@ class XGBoostUbjParser {
      */
     XGBoostUbjParser(String filePath) throws IOException {
         this.xgboostTrees = new ArrayList<>();
+        double tmpBaseScore = 0.5; // default value
         try (FileInputStream fileStream = new FileInputStream(filePath);
              UBReader reader = new UBReader(fileStream)) {
             UBValue root = reader.read();
@@ -46,6 +48,19 @@ class XGBoostUbjParser {
                     throw new IOException("Expected 'learner' object in UBJ root");
                 }
                 UBObject learner = learnerValue.asObject();
+
+                // Extract base_score from learner_model_param
+                UBValue learnerModelParamValue = learner.get("learner_model_param");
+                if (learnerModelParamValue != null && learnerModelParamValue.isObject()) {
+                    UBObject learnerModelParam = learnerModelParamValue.asObject();
+                    UBValue baseScoreValue = learnerModelParam.get("base_score");
+                    if (baseScoreValue != null && baseScoreValue.isString()) {
+                        String baseScoreStr = baseScoreValue.asString();
+                        // Parse string like "[6.274165E-1]" - remove brackets and parse
+                        baseScoreStr = baseScoreStr.replace("[", "").replace("]", "");
+                        tmpBaseScore = Double.parseDouble(baseScoreStr);
+                    }
+                }
                 UBValue gbValue = learner.get("gradient_booster");
                 if (gbValue == null || !gbValue.isObject()) {
                     throw new IOException("Expected 'gradient_booster' object in learner");
@@ -74,6 +89,7 @@ class XGBoostUbjParser {
                 this.xgboostTrees.add(convertUbjTree(treeValue.asObject()));
             }
         }
+        this.baseScore = tmpBaseScore;
     }
 
     /**
@@ -89,6 +105,9 @@ class XGBoostUbjParser {
                 ret.append(" + \n");
             }
         }
+        // Add base_score logit transformation
+        ret.append(" + \n");
+        ret.append("log(" + baseScore + ") - log(" + (1.0 - baseScore) + ")");
         return ret.toString();
     }
 

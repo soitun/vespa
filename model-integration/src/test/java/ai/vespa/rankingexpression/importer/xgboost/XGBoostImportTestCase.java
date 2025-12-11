@@ -28,7 +28,7 @@ public class XGBoostImportTestCase {
 
     @Test
     public void testXGBoostUBJ() {
-        // Test that JSON and UBJ formats produce identical ranking expressions
+        // Test that UBJ format imports successfully and includes base_score adjustment
         XGBoostImporter importer = new XGBoostImporter();
         ImportedModel jsonModel = importer.importModel("test", "src/test/models/xgboost/binary_breast_cancer.json");
         ImportedModel ubjModel = importer.importModel("test", "src/test/models/xgboost/binary_breast_cancer.ubj");
@@ -42,10 +42,16 @@ public class XGBoostImportTestCase {
         assertNotNull("JSON expression should exist", jsonExpression);
         assertNotNull("UBJ expression should exist", ubjExpression);
 
-        // The ranking expressions should be identical
-        assertEquals("JSON and UBJ should produce identical ranking expressions",
-                jsonExpression.getRoot().toString(),
-                ubjExpression.getRoot().toString());
+        String jsonExprStr = jsonExpression.getRoot().toString();
+        String ubjExprStr = ubjExpression.getRoot().toString();
+
+        // UBJ should include the base_score logit transformation
+        assertTrue("UBJ expression should contain base_score adjustment",
+                ubjExprStr.contains("log(0.6274165)"));
+
+        // UBJ expression should start with the same tree expressions as JSON
+        assertTrue("UBJ should contain tree expressions",
+                ubjExprStr.startsWith(jsonExprStr));
     }
 
 }
