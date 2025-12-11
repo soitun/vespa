@@ -70,17 +70,21 @@ class XGBoostUbjParser extends AbstractXGBoostParser {
      * @return Vespa ranking expressions.
      */
     String toRankingExpression() {
-        StringBuilder ret = new StringBuilder();
+        StringBuilder result = new StringBuilder();
+
+        // Convert all trees to expressions and join with " + "
         for (int i = 0; i < xgboostTrees.size(); i++) {
-            ret.append(treeToRankExp(xgboostTrees.get(i)));
-            if (i != xgboostTrees.size() - 1) {
-                ret.append(" + \n");
+            if (i > 0) {
+                result.append(" + \n");
             }
+            result.append(treeToRankExp(xgboostTrees.get(i)));
         }
+
         // Add base_score logit transformation
-        ret.append(" + \n");
-        ret.append("log(" + baseScore + ") - log(" + (1.0 - baseScore) + ")");
-        return ret.toString();
+        result.append(" + \n");
+        result.append("log(").append(baseScore).append(") - log(").append(1.0 - baseScore).append(")");
+
+        return result.toString();
     }
 
     /**
